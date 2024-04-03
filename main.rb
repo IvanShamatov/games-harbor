@@ -90,12 +90,125 @@ end
 
 BLUISH = GetColor(0x00949E33)
 
+class Port
+  attr_reader :rect
+
+  def initialize
+    @dots = []
+  end
+
+  def add(pos)
+    @dots << pos
+    update_boundaries(pos)
+  end
+
+  def update_boundaries(pos)
+    return if @dots.size < 2 # we cannot make rectangle if there are less then 2 dots
+
+    if @dots.size == 2
+      f, s = @dots
+      @rect = Rectangle.create([f.x, s.x].min, [f.y, s.y].min, (f.x-s.x).abs, (f.y-s.y).abs)
+    end
+
+    return if @rect && CheckCollisionPointRec(pos, @rect) # skip if dot is inside current rect
+
+    if pos.x <= @rect.x
+      new_x = pos.x
+      new_w = (@rect.x - pos.x) + @rect.width
+    end
+
+    if pos.y <= @rect.y
+      new_y = pos.y
+      new_h = @rect.y - pos.y + @rect.height
+    end
+
+    if pos.x >= @rect.x + @rect.width
+      new_w = pos.x - @rect.x
+    end
+
+    if pos.y >= @rect.y + @rect.height
+      new_h = pos.y - @rect.y
+    end
+
+    @rect.x = new_x if new_x
+    @rect.y = new_y if new_y
+    @rect.width = new_w if new_w
+    @rect.height = new_h if new_h
+  end
+
+  def draw
+    DrawRectangleLinesEx(@rect, 3, LIME) if @rect
+    @dots.each_with_index do |point, i|
+      DrawCircleV(point, 5, GREEN)
+      DrawLineEx(point, @dots[i-1], 3, GREEN);
+    end
+  end
+end
+
+class Obsticle
+  attr_reader :rect
+
+  def initialize
+    @dots = []
+  end
+
+  def add(pos)
+    @dots << pos
+    update_boundaries(pos)
+  end
+
+  def update_boundaries(pos)
+    return if @dots.size < 2 # we cannot make rectangle if there are less then 2 dots
+
+    if @dots.size == 2
+      f, s = @dots
+      @rect = Rectangle.create([f.x, s.x].min, [f.y, s.y].min, (f.x-s.x).abs, (f.y-s.y).abs)
+    end
+
+    return if @rect && CheckCollisionPointRec(pos, @rect) # skip if dot is inside current rect
+
+    if pos.x <= @rect.x
+      new_x = pos.x
+      new_w = (@rect.x - pos.x) + @rect.width
+    end
+
+    if pos.y <= @rect.y
+      new_y = pos.y
+      new_h = @rect.y - pos.y + @rect.height
+    end
+
+    if pos.x >= @rect.x + @rect.width
+      new_w = pos.x - @rect.x
+    end
+
+    if pos.y >= @rect.y + @rect.height
+      new_h = pos.y - @rect.y
+    end
+
+    @rect.x = new_x if new_x
+    @rect.y = new_y if new_y
+    @rect.width = new_w if new_w
+    @rect.height = new_h if new_h
+  end
+
+  def draw
+    DrawRectangleLinesEx(@rect, 3, PINK) if @rect
+    @dots.each_with_index do |point, i|
+      DrawCircleV(point, 5, RED)
+      DrawLineEx(point, @dots[i-1], 3, RED);
+    end
+  end
+end
+
+
 class Game
   include Raylib
 
-
   def initialize
+    @obsticles = []
+    @current_obsticle = Obsticle.new
     @ports = []
+    @current_port = Port.new
     @ships = []
     5.times do
       pos = Vector2.create(rand(SCREEN_WIDTH), rand(SCREEN_HEIGHT))
@@ -134,9 +247,30 @@ class Game
       @mode = :game
     end
 
+    if IsKeyPressed(KEY_P) && @mode == :editor
+      @adding = :port
+      if @current_port
+        @ports << @current_port
+      end
+      @current_port = Port.new
+    end
+
+    if IsKeyPressed(KEY_O) && @mode == :editor
+
+      @adding = :obsticle
+      if @current_obsticle
+        @obsticles << @current_obsticle
+      end
+      @current_obsticle = Obsticle.new
+    end
+
     if IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && @mode == :editor
-      @ports << GetMousePosition()
-      pp @ports
+      case @adding
+      when :port
+        @current_port.add(GetMousePosition())
+      when :obsticle
+        @current_obsticle.add(GetMousePosition())
+      end
     end
 
     if IsMouseButtonDown(MOUSE_BUTTON_LEFT)
@@ -153,6 +287,10 @@ class Game
     end
 
     @ships.each(&:update) unless @mode == :editor
+    @ships.each do |ship|
+      # check obsticle collisions
+
+    end
   end
 
   def check_ship(pos)
@@ -166,10 +304,11 @@ class Game
 
       @ships.each(&:draw)
 
-      @ports.each_with_index do |point, i|
-        DrawCircleV(point, 5, RED)
-        DrawLineEx(point, @ports[i-1], 3, RED);
-      end
+      @ports.each(&:draw)
+      @current_port.draw
+
+      @obsticles.each(&:draw)
+      @current_obsticle.draw
       # @active_ship.
 
       # current_buffer = @current_path.map(&:to_a).flatten.pack("F*")
